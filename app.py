@@ -23,20 +23,20 @@ from nba_api.stats.endpoints import (
 SIMILARITY_FEATURES = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FG_PCT', 'FT_PCT']
 
 @st.cache_data(ttl=3600 * 24) # 緩存 1 天，因為獲取所有數據較慢
-def get_all_player_stats(season='2023-24'):
+def get_all_player_stats(season):
     """獲取所有活躍球員的基準統計數據，用於相似度計算。"""
     try:
-       # 獲取指定賽季所有球員的基礎統計
-        # 最終修正：移除 'per_mode' 參數，讓 API 使用其預設的 'PerGame' 模式
+        # 忽略輸入的 season 參數，固定使用一個最近的、數據最完整的賽季作為基準
+        BASELINE_SEASON = '2023-24'
         all_stats = LeagueDashPlayerStats(
-            season=season, 
+            season=BASELINE_SEASON, 
             season_type_all_star='Regular Season'
         )
-        # 數據位於第二張 DataFrame
+        # 數據位於第一張 DataFrame
         all_stats_df = all_stats.get_data_frames()[0]
         
         # 清理並選擇特徵
-        df = all_stats_df[['PLAYER_NAME', 'PLAYER_ID'] + SIMILARITY_FEATURES].copy()
+        df = all_stats_df[['PLAYER_NAME', 'PLAYER_ID', 'PLAYER_POSITION'] + SIMILARITY_FEATURES].copy()
         
         # 修正命中率為小數點格式 (API 數據通常是 0.xyz)
         df['FG_PCT'] = df['FG_PCT']
@@ -47,7 +47,7 @@ def get_all_player_stats(season='2023-24'):
         
         return df
     except Exception as e:
-        st.error(f"無法載入基準數據庫進行相似度分析: {e}")
+        # 如果獲取基準數據失敗，返回空 DataFrame
         return pd.DataFrame()
 
 
@@ -66,7 +66,6 @@ def get_player_id(player_name):
 
 def get_precise_positions(generic_position):
     """將 NBA API 返回的通用位置轉換為所有精確位置。"""
-    # (此函數內容保持不變)
     position_map = {
         'Guard': ['PG', 'SG'], 'Forward': ['SF', 'PF'], 'Center': ['C'],
         'G-F': ['PG', 'SG', 'SF'], 'F-G': ['SG', 'SF', 'PF'], 'F-C': ['SF', 'PF', 'C'],
@@ -78,7 +77,7 @@ def get_precise_positions(generic_position):
     return generic_position
 
 def get_player_report(player_name, season='2023-24'):
-    # ... (此函數大部分內容保持不變)
+    """獲取並整理特定球員的狀態報告數據。"""
     player_id = get_player_id(player_name)
     if not player_id:
         return {'error': f"找不到球員：{player_name}。請檢查姓名是否正確。"}
@@ -98,11 +97,11 @@ def get_player_report(player_name, season='2023-24'):
         awards_df = awards.get_data_frames()[0]
         
         report = {}
-        # ... (基本資訊獲取和球隊邏輯保持不變)
+        # --- 基本資訊 ---
         generic_pos = info_df.loc[0, 'POSITION']
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         
-        # 處理球隊邏輯 (與先前版本相同)
+        # 處理球隊邏輯
         if not season_stats.empty:
             team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
             if 'TOT' in team_abbr_list:
@@ -125,14 +124,14 @@ def get_player_report(player_name, season='2023-24'):
             avg_stats = season_stats.iloc[-1]
             total_gp = avg_stats['GP']
             
-            # 統計數據計算 (所有 7 個特徵)
+            # 統計數據計算 (原始小數用於相似度計算)
             report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
             report['reb'] = round(avg_stats['REB'] / total_gp, 1)
             report['ast'] = round(avg_stats['AST'] / total_gp, 1)
             report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
             report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
-            report['fg_pct_raw'] = avg_stats['FG_PCT'] # 原始小數，用於相似度計算
-            report['ft_pct_raw'] = avg_stats['FT_PCT'] # 原始小數，用於相似度計算
+            report['fg_pct_raw'] = avg_stats['FG_PCT']
+            report['ft_pct_raw'] = avg_stats['FT_PCT']
             
             # 報告顯示值 (百分比)
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
@@ -141,17 +140,18 @@ def get_player_report(player_name, season='2023-24'):
             report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
             report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
             
+            # 佔位符
             report['contract_year'] = '數據源無法獲取'
             report['salary'] = '數據源無法獲取'
             report['season'] = season
         else:
-            # ... (N/A 設置邏輯保持不變)
+            # ... (N/A 設置邏輯)
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A',
                 'min_per_game': 'N/A', 'contract_year': 'N/A', 'salary': 'N/A',         
                 'season': f"無 {season} 賽季數據",
-                'fg_pct_raw': 0, 'ft_pct_raw': 0 # 設置為 0 以避免相似度計算報錯
+                'fg_pct_raw': 0, 'ft_pct_raw': 0 # 設置為 0 避免相似度計算報錯
             })
 
         # --- 獎項列表 (含年份) ---
@@ -176,32 +176,39 @@ def get_player_report(player_name, season='2023-24'):
 def get_closest_match(target_stats_dict, current_season):
     """計算餘弦相似度並找出最貼切的對標選手。"""
     
-    # 載入所有基準數據
+    # 載入所有基準數據 (固定使用 2023-24 賽季作為基準)
     all_players_df = get_all_player_stats(current_season)
     
     if all_players_df.empty:
         return "無法載入基準數據庫，對標失敗。"
 
-    # 1. 準備數據
     target_player_name = target_stats_dict['name']
+    target_position = target_stats_dict['position']
     
-    # 篩選掉目標球員本人
-    comparison_df = all_players_df[all_players_df['PLAYER_NAME'] != target_player_name].copy()
+    # 1. 執行位置篩選
+    # 創建一個只包含目標位置球員的 DataFrame
+    # 使用包含操作，例如 PF 也可以跟 F-C 對比
+    filtered_df = all_players_df[all_players_df['PLAYER_POSITION'].str.contains(target_position[:1], case=False, na=False)].copy()
+    
+    # 過濾掉目標球員本人
+    comparison_df = filtered_df[filtered_df['PLAYER_NAME'] != target_player_name].copy()
+    
+    # 過濾掉數據過低的邊緣球員 (例如：PTS/G < 5)
+    comparison_df = comparison_df[comparison_df['PTS'] >= 5]
     
     if comparison_df.empty:
-        return "數據庫太小，無法對標。"
-
-    # 提取特徵，並將原始百分比轉換為小數 (API 數據通常是 0.xyz)
+        return "數據庫太小，無同位置合格對標選手。"
+    
+    # 2. 準備目標數據向量
     target_data = {
         'PTS': [target_stats_dict['pts']], 'REB': [target_stats_dict['reb']], 
         'AST': [target_stats_dict['ast']], 'STL': [target_stats_dict['stl']], 
-        'BLK': [target_stats_dict['blk']], 'FG_PCT': [target_stats_dict['fg_pct'] / 100], 
-        'FT_PCT': [target_stats_dict['ft_pct'] / 100]
+        'BLK': [target_stats_dict['blk']], 'FG_PCT': [target_stats_dict['fg_pct_raw']], 
+        'FT_PCT': [target_stats_dict['ft_pct_raw']]
     }
     target_df = pd.DataFrame(target_data)
 
-    # 2. 數據標準化 (StandardScaler)
-    # 確保所有數據都在同一個尺度上
+    # 3. 數據標準化 (StandardScaler)
     scaler = StandardScaler()
     
     # 對所有比較對象進行擬合和轉換
@@ -210,11 +217,10 @@ def get_closest_match(target_stats_dict, current_season):
     # 對目標數據進行轉換 (只用 transform)
     target_scaled = scaler.transform(target_df[SIMILARITY_FEATURES])
 
-    # 3. 計算餘弦相似度
-    # Cosine Similarity 越接近 1，表示相似度越高
+    # 4. 計算餘弦相似度
     similarity_scores = cosine_similarity(target_scaled, comparison_scaled)[0]
     
-    # 4. 找出最高相似度的球員
+    # 5. 找出最高相似度的球員
     comparison_df['Similarity'] = similarity_scores
     best_match = comparison_df.sort_values(by='Similarity', ascending=False).iloc[0]
     
@@ -223,13 +229,13 @@ def get_closest_match(target_stats_dict, current_season):
 
 
 def analyze_style(stats, position):
-    # 此函數僅保留風格判斷，不進行對標
+    """此函數保留風格判斷邏輯，不執行對標。"""
     try:
         pts = float(stats.get('pts', 0))
         ast = float(stats.get('ast', 0))
         reb = float(stats.get('reb', 0))
     except ValueError:
-        return {'core_style': '數據不足，無法分析', 'simple_rating': '請嘗試查詢有數據的賽季。', 'comparsion': '無對標選手'}
+        return {'core_style': '數據不足，無法分析', 'simple_rating': '請嘗試查詢有數據的賽季。'}
 
     HIGH_PTS, HIGH_AST, HIGH_REB = 25, 8, 10
     core_style, simple_rating = "角色球員", "可靠的輪換球員。"
@@ -294,7 +300,7 @@ def format_report_markdown_streamlit(data):
 **⭐ 球員風格分析 (機器學習對標):**
 * **核心風格:** {style_analysis['core_style']}
 * **簡化評級:** {style_analysis['simple_rating']}
-* **最貼切對標選手:** **{comparison_result}**
+* **球員模板:** **{comparison_result}** # <-- 最終顯示球員模板
 
 ---
 
@@ -321,7 +327,6 @@ with st.sidebar:
     if st.button("🔍 生成報告"):
         if player_name_input:
             with st.spinner(f'正在爬取 {player_name_input} 的 {season_input} 數據...'):
-                # 注意：這裡會觸發兩次 API 呼叫 (一次獲取目標球員，一次獲取所有球員)
                 report_data = get_player_report(player_name_input, season_input)
                 markdown_output = format_report_markdown_streamlit(report_data)
                 

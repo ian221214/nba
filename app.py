@@ -169,7 +169,7 @@ def format_report_markdown_streamlit(data):
 * 場均助攻 (AST): **{data['ast']}**
 * 場均抄截 (STL): **{data['stl']}**
 * 場均封阻 (BLK): **{data['blk']}**
-* 投籃命中率 (FG%): **{data['fg_pct']}%** <-- 修正：顯示 FG%
+* 投籃命中率 (FG%): **{data['fg_pct']}%** 
 
 ---
 

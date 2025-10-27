@@ -4,8 +4,13 @@
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最终修正：使用兼容性最高的單行匯入格式，解決 Import/SyntaxError
-from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats, PlayerDashboardByYear 
+# 最终修正：使用 Python 官方推薦、兼容性最高的標準多行匯入格式
+from nba_api.stats.endpoints import (
+    playerawards, 
+    commonplayerinfo, 
+    playercareerstats, 
+    PlayerDashboardByYear, 
+)
 
 # ====================================================================
 # I. 數據獲取與處理的核心邏輯

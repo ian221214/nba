@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final Cosine Similarity Model
+# NBA Player Report Streamlit App - Final and Stable Version (Corrected Historical Team Lookup)
 
 import pandas as pd
 import streamlit as st
@@ -12,7 +12,7 @@ from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
     playercareerstats, 
-    LeagueDashPlayerStats # 用於獲取所有球員的基準數據
+    LeagueDashPlayerStats, # 用於獲取所有球員的基準數據
 )
 
 # ====================================================================
@@ -24,13 +24,15 @@ SIMILARITY_FEATURES = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FG_PCT', 'FT_PCT']
 
 @st.cache_data(ttl=3600 * 24) # 緩存 1 天，因為獲取所有數據較慢
 def get_all_player_stats(season):
-    """獲取所有活躍球員的基準統計數據，用於相似度計算。"""
+    """獲取所有活躍球員的基準統計數據，用於相似度計算 (固定使用 2023-24 賽季作為基準)。"""
     try:
         # 忽略輸入的 season 參數，固定使用一個最近的、數據最完整的賽季作為基準
+        # 這樣歷史球員就可以和現代球員進行對比
         BASELINE_SEASON = '2023-24'
         all_stats = LeagueDashPlayerStats(
             season=BASELINE_SEASON, 
-            season_type_all_star='Regular Season'
+            # 確保使用最兼容的參數
+            season_type_all_star='Regular Season' 
         )
         # 數據位於第一張 DataFrame
         all_stats_df = all_stats.get_data_frames()[0]
@@ -47,8 +49,8 @@ def get_all_player_stats(season):
         
         return df
     except Exception as e:
-        # 如果獲取基準數據失敗，返回空 DataFrame
-        return pd.DataFrame()
+        # 如果獲取基準數據失敗，返回 None
+        return None
 
 
 @st.cache_data
@@ -104,6 +106,7 @@ def get_player_report(player_name, season='2023-24'):
         # 處理球隊邏輯
         if not season_stats.empty:
             team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
+
             if 'TOT' in team_abbr_list:
                 abbrs = [a for a in team_abbr_list if a != 'TOT']
                 report['team_abbr'] = ", ".join(abbrs)
@@ -176,11 +179,14 @@ def get_player_report(player_name, season='2023-24'):
 def get_closest_match(target_stats_dict, current_season):
     """計算餘弦相似度並找出最貼切的對標選手。"""
     
-    # 載入所有基準數據 (固定使用 2023-24 賽季作為基準)
+    # 載入所有基準數據
     all_players_df = get_all_player_stats(current_season)
     
-    if all_players_df.empty:
+    # vvvvvvvvvvvvvv 【最終修正：處理基準庫載入失敗】 vvvvvvvvvvvvvv
+    if all_players_df is None or all_players_df.empty:
+        # 如果基準庫載入失敗，直接返回錯誤訊息字串
         return "無法載入基準數據庫，對標失敗。"
+    # ^^^^^^^^^^^^^^ 【最終修正：處理基準庫載入失敗】 ^^^^^^^^^^^^^^
 
     target_player_name = target_stats_dict['name']
     target_position = target_stats_dict['position']
@@ -300,7 +306,7 @@ def format_report_markdown_streamlit(data):
 **⭐ 球員風格分析 (機器學習對標):**
 * **核心風格:** {style_analysis['core_style']}
 * **簡化評級:** {style_analysis['simple_rating']}
-* **球員模板:** **{comparison_result}** # <-- 最終顯示球員模板
+* **球員模板:** **{comparison_result}**
 
 ---
 

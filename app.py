@@ -181,7 +181,7 @@ def format_report_markdown_streamlit(data):
 
     markdown_text = f"""
 ## ⚡ {data['name']} ({data['team_abbr']}) 狀態報告 
-*當前球隊:* **{data['team_full']}** # <-- 顯示球隊全名
+*當前球隊:* **{data['team_full']}** 
 
 **✅ 目前狀態:** {data['status']}
 

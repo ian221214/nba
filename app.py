@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (Removed Contract Info)
+# NBA Player Report Streamlit App - Final and Stable Version (Corrected Historical Team Lookup)
 
 import pandas as pd
 import streamlit as st
@@ -59,7 +59,7 @@ def get_player_report(player_name, season='2023-24'):
         return {'error': f"找不到球員：{player_name}。請檢查姓名是否正確。"}
 
     try:
-        # 1. 獲取基本資訊
+        # 1. 獲取基本資訊 (用於名稱、位置)
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
         info_df = info.get_data_frames()[0]
         
@@ -75,28 +75,29 @@ def get_player_report(player_name, season='2023-24'):
         report = {}
         # --- 基本資訊 ---
         generic_pos = info_df.loc[0, 'POSITION']
-        
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         
-        # vvvvvvvvvvvvvv 【關鍵修改】 vvvvvvvvvvvvvv
-        # 處理當前賽季球隊名稱 (基於 season_stats)
+        # vvvvvvvvvvvvvv 【關鍵修正：穩定的球隊獲取】 vvvvvvvvvvvvvv
         if not season_stats.empty:
+            # 獲取該賽季的球隊縮寫（這是唯一穩定的歷史球隊欄位）
             team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
-            team_full_list = season_stats['TEAM_NAME'].tolist()
 
             if 'TOT' in team_abbr_list:
+                # 多隊情況：排除 'TOT'，並列出所有效力球隊的縮寫
                 abbrs = [a for a in team_abbr_list if a != 'TOT']
                 report['team_abbr'] = ", ".join(abbrs)
-                report['team_full'] = f"效力多隊: {', '.join(team_full_list)}"
+                report['team_full'] = f"效力多隊: {report['team_abbr']}"
             else:
+                # 單一球隊：取第一個縮寫
                 report['team_abbr'] = team_abbr_list[0]
-                report['team_full'] = team_full_list[0]
+                # 由於歷史數據中沒有球隊全名，這裡使用縮寫作為全名顯示
+                report['team_full'] = team_abbr_list[0]
         else:
-            # 如果沒有該賽季數據，則沿用 info_df 的當前/最近球隊作為參考
+            # 無該賽季數據：沿用 info_df 的當前/最近球隊作為參考
             report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
-            report['team_full'] = info_df.loc[0, 'TEAM_NAME']
+            report['team_full'] = info_df.loc[0, 'TEAM_NAME'] # 這裡仍使用全名作為 fallback
         
-        # ^^^^^^^^^^^^^^ 【關鍵修改】 ^^^^^^^^^^^^^^
+        # ^^^^^^^^^^^^^^ 【關鍵修正：穩定的球隊獲取】 ^^^^^^^^^^^^^^
 
         report['status'] = 'Healthy (Active)' 
         report['position'] = generic_pos  
@@ -113,17 +114,27 @@ def get_player_report(player_name, season='2023-24'):
             report['ast'] = round(avg_stats['AST'] / total_gp, 1)
             report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
             report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
+            
+            # 命中率與罰球
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
             report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
             report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
+            
+            # 場均上場時間
             report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
+            
+            # 薪資資訊 (佔位符)
+            report['contract_year'] = '數據源無法獲取'
+            report['salary'] = '數據源無法獲取'
             
             report['season'] = season
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A',
-                'min_per_game': 'N/A',
+                'min_per_game': 'N/A', 
+                'contract_year': 'N/A', 
+                'salary': 'N/A',         
                 'season': f"無 {season} 賽季數據",
             })
 

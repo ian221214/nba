@@ -29,8 +29,9 @@ def get_all_player_stats(season='2023-24'):
         # 獲取指定賽季所有球員的基礎統計
         all_stats = LeagueDashPlayerStats(
             season=season, 
-            per_mode_simple='PerGame', 
-            # 必須使用 SeasonTypeAllRegularSeason，否則數據會不完整
+            # 修正：移除 'per_mode_simple' 參數，改用 'PerMode' 
+            # 這是歷史數據更兼容的寫法
+            per_mode='PerGame', 
             season_type_all_star='Regular Season'
         )
         # 數據位於第二張 DataFrame

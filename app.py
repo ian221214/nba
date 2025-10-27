@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final Version with Import Fix
+# NBA Player Report Streamlit App - Final and Stable Version
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 修正後的匯入格式：使用多行括號，確保語法正確
-from nba_api.stats.endpoints import (
-    playerawards, 
-    commonplayerinfo, 
-    playercareerstats, 
-    PlayerDashboardByYear, 
-)
+# 最终修正：使用兼容性最高的單行匯入格式，解決 Import/SyntaxError
+from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats, PlayerDashboardByYear 
 
 # ====================================================================
 # I. 數據獲取與處理的核心邏輯
@@ -64,10 +59,9 @@ def get_player_report(player_name, season='2023-24'):
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
         info_df = info.get_data_frames()[0]
         
-        # 2. 獲取生涯數據（包含總計數據，用於計算場均）
+        # 2. 獲取生涯數據（總計）
         stats = playercareerstats.PlayerCareerStats(player_id=player_id)
         stats_data = stats.get_data_frames()[0]
-        
         season_stats = stats_data[stats_data['SEASON_ID'] == season]
         
         # 3. 獲取進階數據（真實命中率 TS%）
@@ -85,8 +79,8 @@ def get_player_report(player_name, season='2023-24'):
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         report['team'] = info_df.loc[0, 'TEAM_ABBREVIATION']
         report['status'] = 'Healthy (Active)' 
-        report['position'] = generic_pos  # 保留通用位置供分析
-        report['precise_positions'] = get_precise_positions(generic_pos) # <-- 精確位置列表
+        report['position'] = generic_pos  
+        report['precise_positions'] = get_precise_positions(generic_pos) 
         
         # --- 場均數據與 TS% ---
         if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
@@ -107,7 +101,6 @@ def get_player_report(player_name, season='2023-24'):
 
         # --- 獎項列表 (含年份) ---
         if not awards_df.empty:
-            # 組合獎項名稱和年份 (例如：NBA All-Star (2024))
             award_pairs = awards_df[['DESCRIPTION', 'SEASON']].apply(
                 lambda x: f"{x['DESCRIPTION']} ({x['SEASON'][:4]})", axis=1
             ).tolist()

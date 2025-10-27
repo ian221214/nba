@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final Version
+# NBA Player Report Streamlit App - Final Version with Import Fix
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
+# 修正後的匯入格式：使用多行括號，確保語法正確
 from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
     playercareerstats, 
-    PlayerDashboardByYear, # 用於獲取進階統計（如 TS%）
+    PlayerDashboardByYear, 
 )
 
 # ====================================================================
@@ -93,8 +94,8 @@ def get_player_report(player_name, season='2023-24'):
             report['pts'] = round(avg_stats['PTS'] / avg_stats['GP'], 1) 
             report['reb'] = round(avg_stats['REB'] / avg_stats['GP'], 1)
             report['ast'] = round(avg_stats['AST'] / avg_stats['GP'], 1)
-            report['stl'] = round(avg_stats['STL'] / avg_stats['GP'], 1) # <-- 新增
-            report['blk'] = round(avg_stats['BLK'] / avg_stats['GP'], 1) # <-- 新增
+            report['stl'] = round(avg_stats['STL'] / avg_stats['GP'], 1) 
+            report['blk'] = round(avg_stats['BLK'] / avg_stats['GP'], 1) 
             report['season'] = season
             report['ts_pct'] = round(ts_pct * 100, 1) if ts_pct != 'N/A' else 'N/A'
         else:
@@ -199,7 +200,7 @@ def format_report_markdown_streamlit(data):
 # II. Streamlit 界面邏輯
 # ====================================================================
 
-# 設定頁面，使用 st.set_page_config 必須是 Streamlit 程式碼的第一條指令，但為了兼容性我們放在這裡
+# 設定頁面
 st.set_page_config(layout="centered")
 st.title("🏀 NBA 球員狀態報告自動生成系統")
 

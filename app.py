@@ -26,12 +26,10 @@ SIMILARITY_FEATURES = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FG_PCT', 'FT_PCT']
 def get_all_player_stats(season='2023-24'):
     """獲取所有活躍球員的基準統計數據，用於相似度計算。"""
     try:
-        # 獲取指定賽季所有球員的基礎統計
+       # 獲取指定賽季所有球員的基礎統計
+        # 最終修正：移除 'per_mode' 參數，讓 API 使用其預設的 'PerGame' 模式
         all_stats = LeagueDashPlayerStats(
             season=season, 
-            # 修正：移除 'per_mode_simple' 參數，改用 'PerMode' 
-            # 這是歷史數據更兼容的寫法
-            per_mode='PerGame', 
             season_type_all_star='Regular Season'
         )
         # 數據位於第二張 DataFrame

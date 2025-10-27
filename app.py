@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (Cleanest Output)
+# NBA Player Report Streamlit App - Final and Stable Version
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最終修正：使用兼容性最高的標準多行匯入格式
 from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
@@ -66,7 +65,7 @@ def get_player_report(player_name, season='2023-24'):
         generic_pos = info_df.loc[0, 'POSITION']
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         
-        # 處理球隊邏輯
+        # 處理球隊邏輯 (確保歷史賽季球隊正確)
         if not season_stats.empty:
             team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
             if 'TOT' in team_abbr_list:
@@ -80,7 +79,7 @@ def get_player_report(player_name, season='2023-24'):
             report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
             report['team_full'] = info_df.loc[0, 'TEAM_NAME'] 
         
-        # 移除 'status' 欄位
+        # 移除 'status' 欄位，改用出場數
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
         
@@ -150,7 +149,7 @@ def get_player_report(player_name, season='2023-24'):
             report['season'] = season
         else:
             report.update({
-                'games_played': 0, # <-- 當賽季出場數
+                'games_played': 0, 
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 
                 'contract_year': 'N/A', 'salary': 'N/A', 'season': f"無 {season} 賽季數據",
@@ -222,7 +221,7 @@ def format_report_markdown_streamlit(data):
 ## ⚡ {data['name']} ({data['team_abbr']}) 狀態報告 
 **當賽季效力球隊:** **{data['team_full']}**
 
-**📅 當賽季出場數 (GP):** **{data['games_played']}** # <-- 已移除註釋，顯示 GP
+**📅 當賽季出場數 (GP):** **{data['games_played']}**
 
 **🗺️ 可打位置:** **{data['precise_positions']}**
 
@@ -244,4 +243,50 @@ def format_report_markdown_streamlit(data):
 * **趨勢狀態:** {trend['trend_status']}
 * **得分差異 (PTS $\Delta$):** {trend['delta_pts']} (vs. 生涯平均)
 * **籃板差異 (REB $\Delta$):** {trend['delta_reb']}
-* **助攻差異 (AST $\Delta$):
+* **助攻差異 (AST $\Delta$):** {trend['delta_ast']}
+
+---
+
+**⭐ 球員風格分析 (Rule-Based):**
+* **核心風格:** {style_analysis['core_style']}
+* **簡化評級:** {style_analysis['simple_rating']}
+
+---
+
+**🏆 曾經得過的官方獎項 (含年份):**
+{awards_list_md}
+"""
+    return markdown_text
+
+# ====================================================================
+# II. Streamlit 界面邏輯
+# ====================================================================
+
+# 設定頁面
+st.set_page_config(layout="centered")
+st.title("🏀 NBA 球員狀態報告自動生成系統")
+
+# 使用 Streamlit 的 sidebar 創建輸入表單
+with st.sidebar:
+    st.header("參數設置")
+    player_name_input = st.text_input("輸入球員全名:", value="James Harden")
+    season_input = st.text_input("輸入查詢賽季:", value="2018-19")
+    
+    # 創建一個按鈕
+    if st.button("🔍 生成報告"):
+        if player_name_input:
+            with st.spinner(f'正在爬取 {player_name_input} 的 {season_input} 數據...'):
+                report_data = get_player_report(player_name_input, season_input)
+                markdown_output = format_report_markdown_streamlit(report_data)
+                
+                # 將結果儲存到 session_state
+                st.session_state['report'] = markdown_output
+                st.session_state['player_name'] = player_name_input
+                st.session_state['season_input'] = season_input
+        else:
+            st.warning("請輸入一個球員姓名。")
+
+# 顯示主要內容
+st.header("生成結果")
+if 'report' in st.session_state:
+    st.markdown(st.session_state['report'])

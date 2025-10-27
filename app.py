@@ -274,7 +274,13 @@ def format_report_markdown_streamlit(data):
     
     # 獲取動態對標結果
     if data['pts'] != 'N/A':
+        # 第一次嘗試：機器學習模型
         comparison_result = get_closest_match(data, data['season'])
+        
+        # 如果機器學習對標失敗，退回到規則對標 (使用 analyze_style 的結果)
+        if comparison_result == "無法載入基準數據庫，對標失敗。":
+             style_analysis = analyze_style(data, data.get('position', 'N/A'))
+             comparison_result = f"數據庫暫時無法連接，風格相似：{style_analysis['core_style']}"
     else:
         comparison_result = "數據不足，無法進行對標。"
         

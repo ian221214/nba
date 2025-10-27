@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Clean Deployment Version
+# NBA Player Report Streamlit App - Final Version
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats
+from nba_api.stats.endpoints import (
+    playerawards, 
+    commonplayerinfo, 
+    playercareerstats, 
+    PlayerDashboardByYear, # 用於獲取進階統計（如 TS%）
+)
 
 # ====================================================================
-# I. 數據獲取與處理的核心邏輯 (nba_stats.py 的內容)
+# I. 數據獲取與處理的核心邏輯
 # ====================================================================
 
+# Streamlit 緩存裝飾器，加速重複查詢時的數據獲取
 @st.cache_data
 def get_player_id(player_name):
     """根據球員姓名查找其唯一的 Player ID (使用 Streamlit 緩存)"""
@@ -23,6 +29,29 @@ def get_player_id(player_name):
     except Exception:
         return None
 
+def get_precise_positions(generic_position):
+    """將 NBA API 返回的通用位置（Guard, F-C 等）轉換為所有精確位置（PG, SG, SF, PF, C）。"""
+    
+    position_map = {
+        'Guard': ['PG', 'SG'],
+        'Forward': ['SF', 'PF'],
+        'Center': ['C'],
+        'G-F': ['PG', 'SG', 'SF'],
+        'F-G': ['SG', 'SF', 'PF'],
+        'F-C': ['SF', 'PF', 'C'],
+        'C-F': ['PF', 'C', 'SF'],
+        'G': ['PG', 'SG'],
+        'F': ['SF', 'PF'],
+        'C': ['C'],
+    }
+    
+    positions = position_map.get(generic_position)
+    
+    if positions:
+        return ", ".join(positions)
+    
+    return generic_position
+
 def get_player_report(player_name, season='2023-24'):
     """獲取並整理特定球員的狀態報告數據。"""
     player_id = get_player_id(player_name)
@@ -30,39 +59,58 @@ def get_player_report(player_name, season='2023-24'):
         return {'error': f"找不到球員：{player_name}。請檢查姓名是否正確。"}
 
     try:
-        # 1. 獲取基本資訊（位置、球隊）
+        # 1. 獲取基本資訊
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
         info_df = info.get_data_frames()[0]
         
-        # 2. 獲取生涯數據（總計和場均數據）
+        # 2. 獲取生涯數據（包含總計數據，用於計算場均）
         stats = playercareerstats.PlayerCareerStats(player_id=player_id)
         stats_data = stats.get_data_frames()[0]
+        
         season_stats = stats_data[stats_data['SEASON_ID'] == season]
         
-        # 3. 獲取獎項資訊
+        # 3. 獲取進階數據（真實命中率 TS%）
+        advanced_stats = PlayerDashboardByYear(player_id=player_id, season=season)
+        adv_df = advanced_stats.get_data_frames()[0] 
+        ts_pct = adv_df.loc[0, 'TS_PCT'] if not adv_df.empty else 'N/A'
+        
+        # 4. 獲取獎項資訊
         awards = playerawards.PlayerAwards(player_id=player_id)
         awards_df = awards.get_data_frames()[0]
         
         report = {}
-        # 基本資訊
+        # --- 基本資訊 ---
+        generic_pos = info_df.loc[0, 'POSITION']
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         report['team'] = info_df.loc[0, 'TEAM_ABBREVIATION']
         report['status'] = 'Healthy (Active)' 
-        report['position'] = info_df.loc[0, 'POSITION']
+        report['position'] = generic_pos  # 保留通用位置供分析
+        report['precise_positions'] = get_precise_positions(generic_pos) # <-- 精確位置列表
         
-        # 場均數據
+        # --- 場均數據與 TS% ---
         if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
             avg_stats = season_stats.iloc[-1]
             report['pts'] = round(avg_stats['PTS'] / avg_stats['GP'], 1) 
             report['reb'] = round(avg_stats['REB'] / avg_stats['GP'], 1)
             report['ast'] = round(avg_stats['AST'] / avg_stats['GP'], 1)
+            report['stl'] = round(avg_stats['STL'] / avg_stats['GP'], 1) # <-- 新增
+            report['blk'] = round(avg_stats['BLK'] / avg_stats['GP'], 1) # <-- 新增
             report['season'] = season
+            report['ts_pct'] = round(ts_pct * 100, 1) if ts_pct != 'N/A' else 'N/A'
         else:
-            report['pts'], report['reb'], report['ast'], report['season'] = 'N/A', 'N/A', 'N/A', f"無 {season} 賽季數據"
+            report.update({
+                'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
+                'season': f"無 {season} 賽季數據",
+                'ts_pct': 'N/A'
+            })
 
-        # 獎項列表
+        # --- 獎項列表 (含年份) ---
         if not awards_df.empty:
-            report['awards'] = awards_df['DESCRIPTION'].unique().tolist()
+            # 組合獎項名稱和年份 (例如：NBA All-Star (2024))
+            award_pairs = awards_df[['DESCRIPTION', 'SEASON']].apply(
+                lambda x: f"{x['DESCRIPTION']} ({x['SEASON'][:4]})", axis=1
+            ).tolist()
+            report['awards'] = award_pairs
         else:
             report['awards'] = []
 
@@ -70,6 +118,10 @@ def get_player_report(player_name, season='2023-24'):
 
     except Exception as e:
         return {'error': f"數據處理失敗，可能該球員在 {season} 賽季沒有數據。詳細錯誤: {e}"}
+
+# ======================================
+# 輔助函數：風格分析
+# ======================================
 
 def analyze_style(stats, position):
     """根據場均數據和位置，生成簡單的球員風格分析。"""
@@ -108,7 +160,6 @@ def format_report_markdown_streamlit(data):
     if data.get('error'):
         return f"## ❌ 錯誤報告\n\n{data['error']}"
 
-    # 注意：這裡使用 analyze_style 函數，確保它定義在 app.py 的前面部分
     style_analysis = analyze_style(data, data.get('position', 'N/A'))
     
     awards_list_md = '\n'.join([f"* {award}" for award in data['awards'] if award])
@@ -120,12 +171,15 @@ def format_report_markdown_streamlit(data):
 
 **✅ 目前狀態:** {data['status']}
 
-**🗺️ 可打位置:** **{data['position']}**
+**🗺️ 可打位置:** **{data['precise_positions']}**
 
 **📊 {data['season']} 賽季平均數據:**
 * 場均得分 (PTS): **{data['pts']}**
 * 場均籃板 (REB): **{data['reb']}**
 * 場均助攻 (AST): **{data['ast']}**
+* 場均抄截 (STL): **{data['stl']}**
+* 場均封阻 (BLK): **{data['blk']}**
+* 真實命中率 (TS%): **{data['ts_pct']}%**
 
 ---
 
@@ -136,15 +190,16 @@ def format_report_markdown_streamlit(data):
 
 ---
 
-**🏆 曾經得過的官方獎項:**
+**🏆 曾經得過的官方獎項 (含年份):**
 {awards_list_md}
 """
-    # 最終的修正：直接返回 Markdown 字串，不調用任何外部模組
     return markdown_text
+
 # ====================================================================
 # II. Streamlit 界面邏輯
 # ====================================================================
 
+# 設定頁面，使用 st.set_page_config 必須是 Streamlit 程式碼的第一條指令，但為了兼容性我們放在這裡
 st.set_page_config(layout="centered")
 st.title("🏀 NBA 球員狀態報告自動生成系統")
 
@@ -156,23 +211,19 @@ with st.sidebar:
     
     # 創建一個按鈕
     if st.button("🔍 生成報告"):
-        # 檢查輸入是否為空
         if player_name_input:
-            # 顯示載入中的訊息
             with st.spinner(f'正在爬取 {player_name_input} 的 {season_input} 數據...'):
-                # 獲取數據
                 report_data = get_player_report(player_name_input, season_input)
-                
-                # 格式化為 Markdown
                 markdown_output = format_report_markdown_streamlit(report_data)
                 
-                # 將結果儲存到 session_state，以便頁面刷新後仍能顯示
+                # 將結果儲存到 session_state
                 st.session_state['report'] = markdown_output
+                st.session_state['player_name'] = player_name_input
+                st.session_state['season_input'] = season_input
         else:
             st.warning("請輸入一個球員姓名。")
 
 # 顯示主要內容
 st.header("生成結果")
 if 'report' in st.session_state:
-    # 使用 st.markdown 渲染結果
     st.markdown(st.session_state['report'])

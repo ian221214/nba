@@ -4,7 +4,13 @@
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats
+# 最终修正：使用 Python 官方推薦、兼容性最高的標準多行匯入格式
+from nba_api.stats.endpoints import (
+    playerawards, 
+    commonplayerinfo, 
+    playercareerstats, 
+    # PlayerDashboardByYear 被移除以維持穩定性
+)
 
 # ====================================================================
 # I. 數據獲取與處理的核心邏輯
@@ -76,23 +82,33 @@ def get_player_report(player_name, season='2023-24'):
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
         
-        # --- 場均數據與 FG% ---
+        # --- 場均數據與 命中率 ---
         if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
             avg_stats = season_stats.iloc[-1]
-            report['pts'] = round(avg_stats['PTS'] / avg_stats['GP'], 1) 
-            report['reb'] = round(avg_stats['REB'] / avg_stats['GP'], 1)
-            report['ast'] = round(avg_stats['AST'] / avg_stats['GP'], 1)
-            report['stl'] = round(avg_stats['STL'] / avg_stats['GP'], 1) 
-            report['blk'] = round(avg_stats['BLK'] / avg_stats['GP'], 1) 
-            report['season'] = season
+            total_gp = avg_stats['GP']
             
-            # 使用 FG% (投籃命中率) 作為穩定替代方案
+            # 五大數據
+            report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
+            report['reb'] = round(avg_stats['REB'] / total_gp, 1)
+            report['ast'] = round(avg_stats['AST'] / total_gp, 1)
+            report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
+            report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
+            
+            # 命中率
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
+            report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
+            report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
+            
+            # <-- 新增：場均上場時間 (MIN/G)
+            report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
+            
+            report['season'] = season
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
+                'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A',
+                'min_per_game': 'N/A', # <-- 新增：MIN/G
                 'season': f"無 {season} 賽季數據",
-                'fg_pct': 'N/A'
             })
 
         # --- 獎項列表 (含年份) ---
@@ -164,12 +180,15 @@ def format_report_markdown_streamlit(data):
 **🗺️ 可打位置:** **{data['precise_positions']}**
 
 **📊 {data['season']} 賽季平均數據:**
+* 場均上場時間 (MIN): **{data['min_per_game']}** # <-- 新增
 * 場均得分 (PTS): **{data['pts']}**
 * 場均籃板 (REB): **{data['reb']}**
 * 場均助攻 (AST): **{data['ast']}**
 * 場均抄截 (STL): **{data['stl']}**
 * 場均封阻 (BLK): **{data['blk']}**
-* 投籃命中率 (FG%): **{data['fg_pct']}%** 
+* 投籃命中率 (FG%): **{data['fg_pct']}%**
+* 罰球命中率 (FT%): **{data['ft_pct']}%**
+* 場均罰球數 (FTA): **{data['fta_per_game']}**
 
 ---
 

@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version
+# NBA Player Report Streamlit App - Final and Stable Version (with Team Name)
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最终修正：使用 Python 官方推薦、兼容性最高的標準多行匯入格式
+# 最終修正：使用兼容性最高的標準多行匯入格式，解決 Import/SyntaxError
 from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
     playercareerstats, 
-    # PlayerDashboardByYear 被移除以維持穩定性
 )
 
 # ====================================================================
@@ -76,8 +75,10 @@ def get_player_report(player_name, season='2023-24'):
         report = {}
         # --- 基本資訊 ---
         generic_pos = info_df.loc[0, 'POSITION']
+        
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
-        report['team'] = info_df.loc[0, 'TEAM_ABBREVIATION']
+        report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION'] # 保持縮寫供標題使用
+        report['team_full'] = info_df.loc[0, 'TEAM_NAME'] # <-- 新增：球隊全名
         report['status'] = 'Healthy (Active)' 
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
@@ -94,20 +95,26 @@ def get_player_report(player_name, season='2023-24'):
             report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
             report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
             
-            # 命中率
+            # 命中率與罰球
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
             report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
             report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
             
-            # <-- 新增：場均上場時間 (MIN/G)
+            # 場均上場時間
             report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
+            
+            # 薪資相關資訊 (佔位符)
+            report['contract_year'] = '數據源無法獲取'
+            report['salary'] = '數據源無法獲取'
             
             report['season'] = season
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A',
-                'min_per_game': 'N/A', # <-- 新增：MIN/G
+                'min_per_game': 'N/A', 
+                'contract_year': 'N/A', 
+                'salary': 'N/A',         
                 'season': f"無 {season} 賽季數據",
             })
 
@@ -173,14 +180,19 @@ def format_report_markdown_streamlit(data):
         awards_list_md = "* 暫無官方 NBA 獎項記錄"
 
     markdown_text = f"""
-## ⚡ {data['name']} ({data['team']}) 狀態報告
+## ⚡ {data['name']} ({data['team_abbr']}) 狀態報告 
+*當前球隊:* **{data['team_full']}** # <-- 顯示球隊全名
 
 **✅ 目前狀態:** {data['status']}
 
 **🗺️ 可打位置:** **{data['precise_positions']}**
 
+**💰 合約資訊 (當前賽季 {data['season']}):**
+* 年薪/平均年薪: **{data['salary']}**
+* 合約第幾年: **{data['contract_year']}**
+
 **📊 {data['season']} 賽季平均數據:**
-* 場均上場時間 (MIN): **{data['min_per_game']}** 
+* 場均上場時間 (MIN): **{data['min_per_game']}**
 * 場均得分 (PTS): **{data['pts']}**
 * 場均籃板 (REB): **{data['reb']}**
 * 場均助攻 (AST): **{data['ast']}**

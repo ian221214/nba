@@ -4,13 +4,8 @@
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最终修正：使用 Python 官方推薦、兼容性最高的標準多行匯入格式
-from nba_api.stats.endpoints import (
-    playerawards, 
-    commonplayerinfo, 
-    playercareerstats, 
-    PlayerDashboardByYear, 
-)
+# 最终修正：移除 PlayerDashboardByYear，避免 Import/Cache 錯誤
+from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats 
 
 # ====================================================================
 # I. 數據獲取與處理的核心邏輯
@@ -69,12 +64,7 @@ def get_player_report(player_name, season='2023-24'):
         stats_data = stats.get_data_frames()[0]
         season_stats = stats_data[stats_data['SEASON_ID'] == season]
         
-        # 3. 獲取進階數據（真實命中率 TS%）
-        advanced_stats = PlayerDashboardByYear(player_id=player_id, season=season)
-        adv_df = advanced_stats.get_data_frames()[0] 
-        ts_pct = adv_df.loc[0, 'TS_PCT'] if not adv_df.empty else 'N/A'
-        
-        # 4. 獲取獎項資訊
+        # 3. 獲取獎項資訊
         awards = playerawards.PlayerAwards(player_id=player_id)
         awards_df = awards.get_data_frames()[0]
         
@@ -96,7 +86,8 @@ def get_player_report(player_name, season='2023-24'):
             report['stl'] = round(avg_stats['STL'] / avg_stats['GP'], 1) 
             report['blk'] = round(avg_stats['BLK'] / avg_stats['GP'], 1) 
             report['season'] = season
-            report['ts_pct'] = round(ts_pct * 100, 1) if ts_pct != 'N/A' else 'N/A'
+            # 由於 PlayerDashboardByYear 錯誤，TS% 改為提示訊息
+            report['ts_pct'] = '數據源衝突，無法獲取' 
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
@@ -178,7 +169,7 @@ def format_report_markdown_streamlit(data):
 * 場均助攻 (AST): **{data['ast']}**
 * 場均抄截 (STL): **{data['stl']}**
 * 場均封阻 (BLK): **{data['blk']}**
-* 真實命中率 (TS%): **{data['ts_pct']}%**
+* 真實命中率 (TS%): **{data['ts_pct']}** <-- 顯示訊息而非數值
 
 ---
 

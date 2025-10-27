@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (with Team Name)
+# NBA Player Report Streamlit App - Final and Stable Version (Removed Contract Info)
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最終修正：使用兼容性最高的標準多行匯入格式，解決 Import/SyntaxError
+# 最終修正：使用兼容性最高的標準多行匯入格式
 from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
@@ -77,8 +77,27 @@ def get_player_report(player_name, season='2023-24'):
         generic_pos = info_df.loc[0, 'POSITION']
         
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
-        report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION'] # 保持縮寫供標題使用
-        report['team_full'] = info_df.loc[0, 'TEAM_NAME'] # <-- 新增：球隊全名
+        
+        # vvvvvvvvvvvvvv 【關鍵修改】 vvvvvvvvvvvvvv
+        # 處理當前賽季球隊名稱 (基於 season_stats)
+        if not season_stats.empty:
+            team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
+            team_full_list = season_stats['TEAM_NAME'].tolist()
+
+            if 'TOT' in team_abbr_list:
+                abbrs = [a for a in team_abbr_list if a != 'TOT']
+                report['team_abbr'] = ", ".join(abbrs)
+                report['team_full'] = f"效力多隊: {', '.join(team_full_list)}"
+            else:
+                report['team_abbr'] = team_abbr_list[0]
+                report['team_full'] = team_full_list[0]
+        else:
+            # 如果沒有該賽季數據，則沿用 info_df 的當前/最近球隊作為參考
+            report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
+            report['team_full'] = info_df.loc[0, 'TEAM_NAME']
+        
+        # ^^^^^^^^^^^^^^ 【關鍵修改】 ^^^^^^^^^^^^^^
+
         report['status'] = 'Healthy (Active)' 
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
@@ -88,33 +107,23 @@ def get_player_report(player_name, season='2023-24'):
             avg_stats = season_stats.iloc[-1]
             total_gp = avg_stats['GP']
             
-            # 五大數據
+            # 統計數據計算
             report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
             report['reb'] = round(avg_stats['REB'] / total_gp, 1)
             report['ast'] = round(avg_stats['AST'] / total_gp, 1)
             report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
             report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
-            
-            # 命中率與罰球
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
             report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
             report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
-            
-            # 場均上場時間
             report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
-            
-            # 薪資相關資訊 (佔位符)
-            report['contract_year'] = '數據源無法獲取'
-            report['salary'] = '數據源無法獲取'
             
             report['season'] = season
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A',
-                'min_per_game': 'N/A', 
-                'contract_year': 'N/A', 
-                'salary': 'N/A',         
+                'min_per_game': 'N/A',
                 'season': f"無 {season} 賽季數據",
             })
 
@@ -181,15 +190,11 @@ def format_report_markdown_streamlit(data):
 
     markdown_text = f"""
 ## ⚡ {data['name']} ({data['team_abbr']}) 狀態報告 
-*當前球隊:* **{data['team_full']}** 
+**當賽季效力球隊:** **{data['team_full']}**
 
 **✅ 目前狀態:** {data['status']}
 
 **🗺️ 可打位置:** **{data['precise_positions']}**
-
-**💰 合約資訊 (當前賽季 {data['season']}):**
-* 年薪/平均年薪: **{data['salary']}**
-* 合約第幾年: **{data['contract_year']}**
 
 **📊 {data['season']} 賽季平均數據:**
 * 場均上場時間 (MIN): **{data['min_per_game']}**
@@ -227,8 +232,8 @@ st.title("🏀 NBA 球員狀態報告自動生成系統")
 # 使用 Streamlit 的 sidebar 創建輸入表單
 with st.sidebar:
     st.header("參數設置")
-    player_name_input = st.text_input("輸入球員全名:", value="Jayson Tatum")
-    season_input = st.text_input("輸入查詢賽季:", value="2023-24")
+    player_name_input = st.text_input("輸入球員全名:", value="James Harden")
+    season_input = st.text_input("輸入查詢賽季:", value="2018-19")
     
     # 創建一個按鈕
     if st.button("🔍 生成報告"):

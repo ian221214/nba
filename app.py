@@ -180,7 +180,7 @@ def format_report_markdown_streamlit(data):
 **🗺️ 可打位置:** **{data['precise_positions']}**
 
 **📊 {data['season']} 賽季平均數據:**
-* 場均上場時間 (MIN): **{data['min_per_game']}** # <-- 新增
+* 場均上場時間 (MIN): **{data['min_per_game']}** 
 * 場均得分 (PTS): **{data['pts']}**
 * 場均籃板 (REB): **{data['reb']}**
 * 場均助攻 (AST): **{data['ast']}**

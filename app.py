@@ -3,7 +3,6 @@
 
 import pandas as pd
 import streamlit as st
-import markdown
 from nba_api.stats.static import players
 from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats
 
@@ -109,13 +108,14 @@ def format_report_markdown_streamlit(data):
     if data.get('error'):
         return f"## ❌ 錯誤報告\n\n{data['error']}"
 
+    # 注意：這裡使用 analyze_style 函數，確保它定義在 app.py 的前面部分
     style_analysis = analyze_style(data, data.get('position', 'N/A'))
     
     awards_list_md = '\n'.join([f"* {award}" for award in data['awards'] if award])
     if not awards_list_md:
         awards_list_md = "* 暫無官方 NBA 獎項記錄"
 
-    return f"""
+    markdown_text = f"""
 ## ⚡ {data['name']} ({data['team']}) 狀態報告
 
 **✅ 目前狀態:** {data['status']}
@@ -139,7 +139,8 @@ def format_report_markdown_streamlit(data):
 **🏆 曾經得過的官方獎項:**
 {awards_list_md}
 """
-
+    # 最終的修正：直接返回 Markdown 字串，不調用任何外部模組
+    return markdown_text
 # ====================================================================
 # II. Streamlit 界面邏輯
 # ====================================================================

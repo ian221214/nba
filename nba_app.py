@@ -1,6 +1,5 @@
-# Streamlit App 核心腳本
-# 運行這個 Cell 後，界面會直接在 Notebook 中顯示
-# -------------------------------------------------------------------
+# -*- coding: utf-8 -*-
+# NBA Player Report Streamlit App - Clean Deployment Version
 
 import pandas as pd
 import streamlit as st
@@ -8,55 +7,61 @@ import markdown
 from nba_api.stats.static import players
 from nba_api.stats.endpoints import playerawards, commonplayerinfo, playercareerstats
 
-# --- 將 I. 數據獲取與處理的核心邏輯 重新貼到這裡 ---
-# 注意：為了簡潔，這裡假設所有函數 (get_player_id, get_player_report, analyze_style)
-# 已經在上方的 Cell 中定義。如果您將所有代碼放在一起，請確保它們都在這段代碼的上方。
+# ====================================================================
+# I. 數據獲取與處理的核心邏輯 (nba_stats.py 的內容)
+# ====================================================================
 
-# 為了讓 Streamlit App 能夠運行，我們將函數重新定義一次 (假設您已在上面定義過):
-
+@st.cache_data
 def get_player_id(player_name):
-    # (此處省略函數內容，假設您已在上一個 Cell 定義)
+    """根據球員姓名查找其唯一的 Player ID (使用 Streamlit 緩存)"""
     try:
         nba_players = players.get_players()
-        player_info = [player for player in nba_players if player['full_name'].lower() == player_name.lower()]
+        player_info = [
+            player for player in nba_players 
+            if player['full_name'].lower() == player_name.lower()
+        ]
         return player_info[0]['id'] if player_info else None
     except Exception:
         return None
 
 def get_player_report(player_name, season='2023-24'):
-    # (此處省略函數內容，假設您已在上一個 Cell 定義)
-    # 由於代碼太長，這裡假設它們已在內存中
-    
+    """獲取並整理特定球員的狀態報告數據。"""
     player_id = get_player_id(player_name)
     if not player_id:
         return {'error': f"找不到球員：{player_name}。請檢查姓名是否正確。"}
 
     try:
-        # ... (數據獲取和整理邏輯)
-        # 為了讓 Streamlit 運行，這裡需要完整且正確的數據獲取邏輯
+        # 1. 獲取基本資訊（位置、球隊）
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
         info_df = info.get_data_frames()[0]
+        
+        # 2. 獲取生涯數據（總計和場均數據）
         stats = playercareerstats.PlayerCareerStats(player_id=player_id)
         stats_data = stats.get_data_frames()[0]
         season_stats = stats_data[stats_data['SEASON_ID'] == season]
+        
+        # 3. 獲取獎項資訊
         awards = playerawards.PlayerAwards(player_id=player_id)
         awards_df = awards.get_data_frames()[0]
         
         report = {}
+        # 基本資訊
         report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
         report['team'] = info_df.loc[0, 'TEAM_ABBREVIATION']
-        report['status'] = 'Healthy (Active)'
+        report['status'] = 'Healthy (Active)' 
         report['position'] = info_df.loc[0, 'POSITION']
         
+        # 場均數據
         if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
             avg_stats = season_stats.iloc[-1]
-            report['pts'] = round(avg_stats['PTS'] / avg_stats['GP'], 1)
+            report['pts'] = round(avg_stats['PTS'] / avg_stats['GP'], 1) 
             report['reb'] = round(avg_stats['REB'] / avg_stats['GP'], 1)
             report['ast'] = round(avg_stats['AST'] / avg_stats['GP'], 1)
             report['season'] = season
         else:
             report['pts'], report['reb'], report['ast'], report['season'] = 'N/A', 'N/A', 'N/A', f"無 {season} 賽季數據"
 
+        # 獎項列表
         if not awards_df.empty:
             report['awards'] = awards_df['DESCRIPTION'].unique().tolist()
         else:
@@ -67,14 +72,8 @@ def get_player_report(player_name, season='2023-24'):
     except Exception as e:
         return {'error': f"數據處理失敗，可能該球員在 {season} 賽季沒有數據。詳細錯誤: {e}"}
 
-# (請確保 analyze_style 和 format_report_markdown 函數也在上方定義)
-# 由於 Streamlit 使用 Markdown 渲染，我們將 format_report_markdown 的輸出從 HTML 改回 Markdown
-
 def analyze_style(stats, position):
-    # (此處省略函數內容，假設已在上一個 Cell 定義)
-    # 由於篇幅限制，請確保 analyze_style 函數已完整定義在上一個 Cell。
-    # 這裡的邏輯與之前版本相同。
-    
+    """根據場均數據和位置，生成簡單的球員風格分析。"""
     try:
         pts = float(stats.get('pts', 0))
         ast = float(stats.get('ast', 0))
@@ -85,6 +84,7 @@ def analyze_style(stats, position):
     HIGH_PTS, HIGH_AST, HIGH_REB = 25, 8, 10
     core_style, simple_rating, comparsion = "角色球員", "可靠的輪換球員。", "無對標選手"
     
+    # 風格判斷邏輯
     if pts >= HIGH_PTS and ast >= 6 and reb >= 6:
         core_style = "🌟 頂級全能巨星 (Elite All-Around Star)"
         simple_rating = "集得分、組織和籃板於一身的劃時代球員。"
@@ -101,10 +101,11 @@ def analyze_style(stats, position):
         core_style = "🧱 籃板/防守支柱 (Rebounding/Defense Anchor)"
         simple_rating = "內線防守和籃板的專家，隊伍的堅實後盾。"
         comparsion = "數據風格類似當年的 Dennis Rodman 或 Ben Wallace。"
+
     return {'core_style': core_style, 'simple_rating': simple_rating, 'comparsion': comparsion}
 
 def format_report_markdown_streamlit(data):
-    """將整理後的數據格式化為 Markdown 報告 (Streamlit 不需要 HTML 轉換)"""
+    """將整理後的數據格式化為 Markdown 報告 (Streamlit 直接渲染)"""
     if data.get('error'):
         return f"## ❌ 錯誤報告\n\n{data['error']}"
 
@@ -140,10 +141,10 @@ def format_report_markdown_streamlit(data):
 """
 
 # ====================================================================
-# III. Streamlit 界面邏輯
+# II. Streamlit 界面邏輯
 # ====================================================================
 
-# 設置頁面標題
+st.set_page_config(layout="centered")
 st.title("🏀 NBA 球員狀態報告自動生成系統")
 
 # 使用 Streamlit 的 sidebar 創建輸入表單
@@ -166,8 +167,6 @@ with st.sidebar:
                 
                 # 將結果儲存到 session_state，以便頁面刷新後仍能顯示
                 st.session_state['report'] = markdown_output
-                st.session_state['player_name'] = player_name_input
-                st.session_state['season_input'] = season_input
         else:
             st.warning("請輸入一個球員姓名。")
 
@@ -176,11 +175,3 @@ st.header("生成結果")
 if 'report' in st.session_state:
     # 使用 st.markdown 渲染結果
     st.markdown(st.session_state['report'])
-
-# 備註: 在 Colab 中，您需要使用特殊的 Streamlit 運行指令來啟動這個應用。
-# 請將上述代碼保存為 app.py，然後在 Colab 中執行: 
-# !streamlit run app.py & npx localtunnel --port 8501 
-# 或者使用專門的 Colab Streamlit 擴充套件。
-
-# 由於直接在 Notebook 中運行 Streamlit 比較複雜，我們將使用 Streamlit 專門的 Notebook 運行方式
-# 讓您直接在這個 Cell 中就能看到界面。

@@ -79,7 +79,6 @@ def get_player_report(player_name, season='2023-24'):
             report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
             report['team_full'] = info_df.loc[0, 'TEAM_NAME'] 
         
-        # 移除 'status' 欄位，該數據不準確
         
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
@@ -89,9 +88,7 @@ def get_player_report(player_name, season='2023-24'):
             avg_stats = season_stats.iloc[-1]
             total_gp = avg_stats['GP']
             
-            # vvvvvvvvvvvvvv 【新增：當賽季出場數 GP】 vvvvvvvvvvvvvv
             report['games_played'] = int(total_gp) 
-            # ^^^^^^^^^^^^^^ 【新增：當賽季出場數 GP】 ^^^^^^^^^^^^^^
             
             # 統計數據計算
             report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 

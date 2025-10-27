@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (Restored Core Style Analysis)
+# NBA Player Report Streamlit App - Final and Stable Version (Cleanest Output)
 
 import pandas as pd
 import streamlit as st
@@ -170,7 +170,7 @@ def format_report_markdown_streamlit(data):
     if data.get('error'):
         return f"## ❌ 錯誤報告\n\n{data['error']}"
 
-    # VVVVVV 重新調用風格分析 VVVVVV
+    # VVVVVV 恢復調用風格分析 VVVVVV
     style_analysis = analyze_style(data, data.get('position', 'N/A'))
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     
@@ -202,7 +202,6 @@ def format_report_markdown_streamlit(data):
 **⭐ 球員風格分析 (Rule-Based):**
 * **核心風格:** {style_analysis['core_style']}
 * **簡化評級:** {style_analysis['simple_rating']}
-* **球員模板:** **無需對標，風格清晰** (這是為了取代機器學習的欄位)
 
 ---
 

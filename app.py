@@ -336,4 +336,4 @@ with st.sidebar:
 # 顯示主要內容
 st.header("生成結果")
 if 'report' in st.session_state:
-    st.markdown(
+    st.markdown(st.session_state['report'])

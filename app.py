@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (Cleanest Trend Analysis)
+# NBA Player Report Streamlit App - Final and Stable Version (Replaced Status with GP)
 
 import pandas as pd
 import streamlit as st
@@ -53,8 +53,7 @@ def get_player_report(player_name, season='2023-24'):
         # 2. 獲取生涯數據（總計）
         stats = playercareerstats.PlayerCareerStats(player_id=player_id)
         stats_data = stats.get_data_frames()[0]
-        career_totals_df = stats.get_data_frames()[1] # <-- 生涯總計數據
-        
+        career_totals_df = stats.get_data_frames()[1] 
         season_stats = stats_data[stats_data['SEASON_ID'] == season]
         
         # 3. 獲取獎項資訊
@@ -80,7 +79,8 @@ def get_player_report(player_name, season='2023-24'):
             report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
             report['team_full'] = info_df.loc[0, 'TEAM_NAME'] 
         
-        report['status'] = 'Healthy (Active)' 
+        # 移除 'status' 欄位，該數據不準確
+        
         report['position'] = generic_pos  
         report['precise_positions'] = get_precise_positions(generic_pos) 
         
@@ -89,13 +89,17 @@ def get_player_report(player_name, season='2023-24'):
             avg_stats = season_stats.iloc[-1]
             total_gp = avg_stats['GP']
             
+            # vvvvvvvvvvvvvv 【新增：當賽季出場數 GP】 vvvvvvvvvvvvvv
+            report['games_played'] = int(total_gp) 
+            # ^^^^^^^^^^^^^^ 【新增：當賽季出場數 GP】 ^^^^^^^^^^^^^^
+            
             # 統計數據計算
             report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
             report['reb'] = round(avg_stats['REB'] / total_gp, 1)
             report['ast'] = round(avg_stats['AST'] / total_gp, 1)
             report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
             report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
-            report['tov'] = round(avg_stats['TOV'] / total_gp, 1) # <-- 場均失誤 TOV/G
+            report['tov'] = round(avg_stats['TOV'] / total_gp, 1)
             
             # 命中率與罰球
             report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
@@ -124,7 +128,7 @@ def get_player_report(player_name, season='2023-24'):
                 delta_reb = report['reb'] - career_avg['reb']
                 delta_ast = report['ast'] - career_avg['ast']
 
-                # 2. 判斷趨勢狀態 (只保留趨勢判斷)
+                # 2. 判斷趨勢狀態
                 if delta_pts >= 3.0:
                     trend_status = "🚀 上升期 (Career Ascending)"
                 elif abs(delta_pts) < 1.0:
@@ -134,8 +138,6 @@ def get_player_report(player_name, season='2023-24'):
                 else:
                     trend_status = "📊 表現波動 (Fluctuating Performance)"
 
-                # --- 移除角色變化判斷 ---
-
                 report['trend_analysis'] = {
                     'delta_pts': f"{'+' if delta_pts > 0 else ''}{round(delta_pts, 1)}",
                     'delta_reb': f"{'+' if delta_reb > 0 else ''}{round(delta_reb, 1)}",
@@ -144,14 +146,17 @@ def get_player_report(player_name, season='2023-24'):
                 }
             else:
                  report['trend_analysis'] = {'trend_status': '無法計算生涯趨勢', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
-            # --- 趨勢分析邏輯結束 ---
-            
+
+            # 薪資資訊 (佔位符)
+            report['contract_year'] = '數據源無法獲取'
+            report['salary'] = '數據源無法獲取'
             report['season'] = season
         else:
             report.update({
                 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A',
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 
                 'contract_year': 'N/A', 'salary': 'N/A', 'season': f"無 {season} 賽季數據",
+                'games_played': 0 # <-- 設置為 0 
             })
             report['trend_analysis'] = {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
 
@@ -220,7 +225,7 @@ def format_report_markdown_streamlit(data):
 ## ⚡ {data['name']} ({data['team_abbr']}) 狀態報告 
 **當賽季效力球隊:** **{data['team_full']}**
 
-**✅ 目前狀態:** {data['status']}
+**📅 當賽季出場數 (GP):** **{data['games_played']}** # <-- 替換為出場數
 
 **🗺️ 可打位置:** **{data['precise_positions']}**
 

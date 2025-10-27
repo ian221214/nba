@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version (Corrected All Logic)
+# NBA Player Report Streamlit App - Final and Stable Version (Cleanest Trend Analysis)
 
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-# 最終修正：使用兼容性最高的標準多行匯入格式
 from nba_api.stats.endpoints import (
     playerawards, 
     commonplayerinfo, 
@@ -90,7 +89,7 @@ def get_player_report(player_name, season='2023-24'):
             avg_stats = season_stats.iloc[-1]
             total_gp = avg_stats['GP']
             
-            # 統計數據計算 (修正：確保所有數據都被計算)
+            # 統計數據計算
             report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
             report['reb'] = round(avg_stats['REB'] / total_gp, 1)
             report['ast'] = round(avg_stats['AST'] / total_gp, 1)
@@ -104,7 +103,7 @@ def get_player_report(player_name, season='2023-24'):
             report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
             report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
             
-            # 助攻失誤比 (A/TO) - 使用 try-except 處理 ZeroDivisionError
+            # 助攻失誤比 (A/TO)
             try:
                 report['ato_ratio'] = round(report['ast'] / report['tov'], 2)
             except ZeroDivisionError:
@@ -115,7 +114,7 @@ def get_player_report(player_name, season='2023-24'):
                 career_avg = {}
                 total_gp_career = career_totals_df.loc[0, 'GP']
                 
-                # 計算生涯平均 (TOV 也需要計算)
+                # 計算生涯平均
                 career_avg['pts'] = round(career_totals_df.loc[0, 'PTS'] / total_gp_career, 1)
                 career_avg['reb'] = round(career_totals_df.loc[0, 'REB'] / total_gp_career, 1)
                 career_avg['ast'] = round(career_totals_df.loc[0, 'AST'] / total_gp_career, 1)
@@ -125,7 +124,7 @@ def get_player_report(player_name, season='2023-24'):
                 delta_reb = report['reb'] - career_avg['reb']
                 delta_ast = report['ast'] - career_avg['ast']
 
-                # 2. 判斷趨勢狀態
+                # 2. 判斷趨勢狀態 (只保留趨勢判斷)
                 if delta_pts >= 3.0:
                     trend_status = "🚀 上升期 (Career Ascending)"
                 elif abs(delta_pts) < 1.0:
@@ -135,26 +134,18 @@ def get_player_report(player_name, season='2023-24'):
                 else:
                     trend_status = "📊 表現波動 (Fluctuating Performance)"
 
-                # 3. 判斷角色變化
-                role_change_text = "角色穩定。"
-                if abs(delta_pts) < 2.0 and delta_ast >= 1.5:
-                    role_change_text = "🔄 **角色轉變**: 得分穩定，但組織能力大幅提升 (轉向組織核心)。"
-                elif delta_pts >= 2.0 and delta_ast >= 1.5:
-                    role_change_text = "👑 **全面進化**: 得分和組織雙雙創下新高。"
+                # --- 移除角色變化判斷 ---
 
                 report['trend_analysis'] = {
                     'delta_pts': f"{'+' if delta_pts > 0 else ''}{round(delta_pts, 1)}",
                     'delta_reb': f"{'+' if delta_reb > 0 else ''}{round(delta_reb, 1)}",
                     'delta_ast': f"{'+' if delta_ast > 0 else ''}{round(delta_ast, 1)}",
                     'trend_status': trend_status,
-                    'role_change': role_change_text
                 }
             else:
-                 report['trend_analysis'] = {'trend_status': '無法計算生涯趨勢', 'role_change': '無法計算。', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
-
-            # 薪資資訊 (佔位符)
-            report['contract_year'] = '數據源無法獲取'
-            report['salary'] = '數據源無法獲取'
+                 report['trend_analysis'] = {'trend_status': '無法計算生涯趨勢', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
+            # --- 趨勢分析邏輯結束 ---
+            
             report['season'] = season
         else:
             report.update({
@@ -162,7 +153,7 @@ def get_player_report(player_name, season='2023-24'):
                 'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 
                 'contract_year': 'N/A', 'salary': 'N/A', 'season': f"無 {season} 賽季數據",
             })
-            report['trend_analysis'] = {'trend_status': 'N/A', 'role_change': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
+            report['trend_analysis'] = {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
 
         # --- 獎項列表 (含年份) ---
         if not awards_df.empty:
@@ -252,7 +243,6 @@ def format_report_markdown_streamlit(data):
 * **得分差異 (PTS $\Delta$):** {trend['delta_pts']} (vs. 生涯平均)
 * **籃板差異 (REB $\Delta$):** {trend['delta_reb']}
 * **助攻差異 (AST $\Delta$):** {trend['delta_ast']}
-* **角色變化判斷:** {trend['role_change']}
 
 ---
 
@@ -278,8 +268,8 @@ st.title("🏀 NBA 球員狀態報告自動生成系統")
 # 使用 Streamlit 的 sidebar 創建輸入表單
 with st.sidebar:
     st.header("參數設置")
-    player_name_input = st.text_input("輸入球員全名:", value="Victor Wembanyama")
-    season_input = st.text_input("輸入查詢賽季:", value="2025-26")
+    player_name_input = st.text_input("輸入球員全名:", value="James Harden")
+    season_input = st.text_input("輸入查詢賽季:", value="2018-19")
     
     # 創建一個按鈕
     if st.button("🔍 生成報告"):

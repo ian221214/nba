@@ -260,8 +260,7 @@ def format_report_markdown_streamlit(data):
 * **得分差異 (PTS $\Delta$):** {trend['delta_pts']} (vs. 生涯平均)
 * **籃板差異 (REB $\Delta$):** {trend['delta_reb']}
 * **助攻差異 (AST $\Delta$):** {trend['delta_ast']}
-* **投籃效率差異 (FG% $\Delta$):** {trend['delta_fg_pct']} # <-- 新增
-
+* **投籃效率差異 (FG% $\Delta$):** {trend['delta_fg_pct']} 
 ---
 
 **⭐ 球員風格分析 (Rule-Based):**

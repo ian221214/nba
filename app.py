@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# NBA Player Report Streamlit App - Final and Stable Version
+# NBA Player Report Streamlit App - Final and Stable Version (Multifactor Trend Analysis)
 
 import pandas as pd
 import streamlit as st
@@ -39,141 +39,6 @@ def get_precise_positions(generic_position):
         return ", ".join(positions)
     return generic_position
 
-def get_player_report(player_name, season='2023-24'):
-    """獲取並整理特定球員的狀態報告數據。"""
-    player_id = get_player_id(player_name)
-    if not player_id:
-        return {'error': f"找不到球員：{player_name}。請檢查姓名是否正確。"}
-
-    try:
-        # 1. 獲取基本資訊
-        info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
-        info_df = info.get_data_frames()[0]
-        
-        # 2. 獲取生涯數據（總計）
-        stats = playercareerstats.PlayerCareerStats(player_id=player_id)
-        stats_data = stats.get_data_frames()[0]
-        career_totals_df = stats.get_data_frames()[1] # <-- 生涯總計數據
-        season_stats = stats_data[stats_data['SEASON_ID'] == season]
-        
-        # 3. 獲取獎項資訊
-        awards = playerawards.PlayerAwards(player_id=player_id)
-        awards_df = awards.get_data_frames()[0]
-        
-        report = {}
-        # --- 基本資訊 ---
-        generic_pos = info_df.loc[0, 'POSITION']
-        report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
-        
-        # 處理球隊邏輯 (確保歷史賽季球隊正確)
-        if not season_stats.empty:
-            team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
-            if 'TOT' in team_abbr_list:
-                abbrs = [a for a in team_abbr_list if a != 'TOT']
-                report['team_abbr'] = ", ".join(abbrs)
-                report['team_full'] = f"效力多隊: {report['team_abbr']}"
-            else:
-                report['team_abbr'] = team_abbr_list[0]
-                report['team_full'] = team_abbr_list[0]
-        else:
-            report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
-            report['team_full'] = info_df.loc[0, 'TEAM_NAME'] 
-        
-        # 移除 'status' 欄位，改用出場數
-        report['position'] = generic_pos  
-        report['precise_positions'] = get_precise_positions(generic_pos) 
-        
-        # --- 場均數據計算 ---
-        if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
-            avg_stats = season_stats.iloc[-1]
-            total_gp = avg_stats['GP']
-            
-            # 統計數據計算
-            report['games_played'] = int(total_gp) # <-- 當賽季出場數
-            report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
-            report['reb'] = round(avg_stats['REB'] / total_gp, 1)
-            report['ast'] = round(avg_stats['AST'] / total_gp, 1)
-            report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
-            report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
-            report['tov'] = round(avg_stats['TOV'] / total_gp, 1)
-            
-            # 命中率與罰球
-            report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
-            report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
-            report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
-            report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
-            
-            # 助攻失誤比 (A/TO)
-            try:
-                report['ato_ratio'] = round(report['ast'] / report['tov'], 2)
-            except ZeroDivisionError:
-                report['ato_ratio'] = 'N/A'
-            
-            # 生涯趨勢分析邏輯
-            if not career_totals_df.empty:
-                career_avg = {}
-                total_gp_career = career_totals_df.loc[0, 'GP']
-                
-                # 計算生涯平均
-                career_avg['pts'] = round(career_totals_df.loc[0, 'PTS'] / total_gp_career, 1)
-                career_avg['reb'] = round(career_totals_df.loc[0, 'REB'] / total_gp_career, 1)
-                career_avg['ast'] = round(career_totals_df.loc[0, 'AST'] / total_gp_career, 1)
-                
-                # 1. 計算 Delta
-                delta_pts = report['pts'] - career_avg['pts']
-                delta_reb = report['reb'] - career_avg['reb']
-                delta_ast = report['ast'] - career_avg['ast']
-
-                # 2. 判斷趨勢狀態
-                if delta_pts >= 3.0:
-                    trend_status = "🚀 上升期 (Career Ascending)"
-                elif abs(delta_pts) < 1.0:
-                    trend_status = "📈 巔峰期穩定 (Stable Peak Performance)"
-                elif delta_pts < -3.0:
-                    trend_status = "📉 下滑期 (Performance Decline)"
-                else:
-                    trend_status = "📊 表現波動 (Fluctuating Performance)"
-
-                report['trend_analysis'] = {
-                    'delta_pts': f"{'+' if delta_pts > 0 else ''}{round(delta_pts, 1)}",
-                    'delta_reb': f"{'+' if delta_reb > 0 else ''}{round(delta_reb, 1)}",
-                    'delta_ast': f"{'+' if delta_ast > 0 else ''}{round(delta_ast, 1)}",
-                    'trend_status': trend_status,
-                }
-            else:
-                 report['trend_analysis'] = {'trend_status': '無法計算生涯趨勢', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
-
-            # 薪資資訊 (佔位符)
-            report['contract_year'] = '數據源無法獲取'
-            report['salary'] = '數據源無法獲取'
-            report['season'] = season
-        else:
-            report.update({
-                'games_played': 0, 
-                'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A',
-                'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 
-                'contract_year': 'N/A', 'salary': 'N/A', 'season': f"無 {season} 賽季數據",
-            })
-            report['trend_analysis'] = {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A'}
-
-        # --- 獎項列表 (含年份) ---
-        if not awards_df.empty:
-            award_pairs = awards_df[['DESCRIPTION', 'SEASON']].apply(
-                lambda x: f"{x['DESCRIPTION']} ({x['SEASON'][:4]})", axis=1
-            ).tolist()
-            report['awards'] = award_pairs
-        else:
-            report['awards'] = []
-
-        return report
-
-    except Exception as e:
-        return {'error': f"數據處理失敗，可能該球員在 {season} 賽季沒有數據。詳細錯誤: {e}"}
-
-# ======================================
-# 輔助函數：風格分析 (Rule-Based)
-# ======================================
-
 def analyze_style(stats, position):
     """根據場均數據和位置，生成簡單的球員風格分析。（用於報告顯示）"""
     try:
@@ -181,7 +46,7 @@ def analyze_style(stats, position):
         ast = float(stats.get('ast', 0))
         reb = float(stats.get('reb', 0))
     except ValueError:
-        return {'core_style': '數據不足，無法分析', 'simple_rating': '請嘗試查詢有數據的賽季。'}
+        return {'core_style': '數據不足', 'simple_rating': '請嘗試查詢有數據的賽季。'}
 
     HIGH_PTS, HIGH_AST, HIGH_REB = 25, 8, 10
     core_style, simple_rating = "角色球員", "可靠的輪換球員。"
@@ -204,6 +69,157 @@ def analyze_style(stats, position):
 
     return {'core_style': core_style, 'simple_rating': simple_rating}
 
+def get_player_report(player_name, season='2023-24'):
+    """獲取並整理特定球員的狀態報告數據。"""
+    player_id = get_player_id(player_name)
+    if not player_id:
+        return {
+            'error': f"找不到球員：{player_name}。請檢查姓名是否正確。",
+            'name': player_name, 'team_abbr': 'N/A', 'team_full': 'N/A', 'precise_positions': 'N/A', 
+            'games_played': 0, 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A', 
+            'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 
+            'trend_analysis': {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A', 'delta_fg_pct': 'N/A'}, # <-- 新增 delta_fg_pct
+            'awards': [], 'contract_year': 'N/A', 'salary': 'N/A', 'season': season
+        }
+
+    try:
+        # 1. 獲取基本資訊
+        info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+        info_df = info.get_data_frames()[0]
+        
+        # 2. 獲取生涯數據（總計）
+        stats = playercareerstats.PlayerCareerStats(player_id=player_id)
+        stats_data = stats.get_data_frames()[0]
+        career_totals_df = stats.get_data_frames()[1] # <-- 生涯總計數據
+        season_stats = stats_data[stats_data['SEASON_ID'] == season]
+        
+        # 3. 獲取獎項資訊
+        awards = playerawards.PlayerAwards(player_id=player_id)
+        awards_df = awards.get_data_frames()[0]
+        
+        report = {}
+        # ... (基本資訊與球隊邏輯保持不變)
+        generic_pos = info_df.loc[0, 'POSITION']
+        report['name'] = info_df.loc[0, 'DISPLAY_FIRST_LAST']
+        
+        # 處理球隊邏輯
+        if not season_stats.empty:
+            team_abbr_list = season_stats['TEAM_ABBREVIATION'].tolist()
+            if 'TOT' in team_abbr_list:
+                abbrs = [a for a in team_abbr_list if a != 'TOT']
+                report['team_abbr'] = ", ".join(abbrs)
+                report['team_full'] = f"效力多隊: {report['team_abbr']}"
+            else:
+                report['team_abbr'] = team_abbr_list[0]
+                report['team_full'] = team_abbr_list[0]
+        else:
+            report['team_abbr'] = info_df.loc[0, 'TEAM_ABBREVIATION']
+            report['team_full'] = info_df.loc[0, 'TEAM_NAME'] 
+        
+        report['position'] = generic_pos  
+        report['precise_positions'] = get_precise_positions(generic_pos) 
+        
+        # --- 場均數據計算 ---
+        if not season_stats.empty and season_stats.iloc[-1]['GP'] > 0:
+            avg_stats = season_stats.iloc[-1]
+            total_gp = avg_stats['GP']
+            
+            # 統計數據計算
+            report['games_played'] = int(total_gp) 
+            report['pts'] = round(avg_stats['PTS'] / total_gp, 1) 
+            report['reb'] = round(avg_stats['REB'] / total_gp, 1)
+            report['ast'] = round(avg_stats['AST'] / total_gp, 1) 
+            report['stl'] = round(avg_stats['STL'] / total_gp, 1) 
+            report['blk'] = round(avg_stats['BLK'] / total_gp, 1) 
+            report['tov'] = round(avg_stats['TOV'] / total_gp, 1)
+            
+            # 命中率與罰球
+            report['fg_pct'] = round(avg_stats['FG_PCT'] * 100, 1) 
+            report['ft_pct'] = round(avg_stats['FT_PCT'] * 100, 1)
+            report['fta_per_game'] = round(avg_stats['FTA'] / total_gp, 1)
+            report['min_per_game'] = round(avg_stats['MIN'] / total_gp, 1) 
+            
+            # 助攻失誤比 (A/TO)
+            try:
+                report['ato_ratio'] = round(report['ast'] / report['tov'], 2)
+            except ZeroDivisionError:
+                report['ato_ratio'] = 'N/A'
+            
+            # 生涯趨勢分析邏輯
+            if not career_totals_df.empty:
+                career_avg = {}
+                total_gp_career = career_totals_df.loc[0, 'GP']
+                
+                # 計算生涯平均 (新增 FG%)
+                career_avg['pts'] = round(career_totals_df.loc[0, 'PTS'] / total_gp_career, 1)
+                career_avg['reb'] = round(career_totals_df.loc[0, 'REB'] / total_gp_career, 1)
+                career_avg['ast'] = round(career_totals_df.loc[0, 'AST'] / total_gp_career, 1)
+                career_avg['fg_pct'] = round(career_totals_df.loc[0, 'FG_PCT'] * 100, 1) # <-- 新增：生涯 FG%
+                
+                # 1. 計算 Delta
+                delta_pts = report['pts'] - career_avg['pts']
+                delta_reb = report['reb'] - career_avg['reb']
+                delta_ast = report['ast'] - career_avg['ast']
+                delta_fg_pct = report['fg_pct'] - career_avg['fg_pct'] # <-- 新增：Delta FG%
+
+                # 2. 判斷趨勢狀態 (多因素判斷)
+                if delta_pts >= 3.0 and delta_fg_pct >= -1.0:
+                    trend_status = "🚀 上升期 (Significant Ascend)"
+                elif delta_pts >= 3.0 and delta_fg_pct < -3.0:
+                    trend_status = "🚨 數據虛胖 (Inefficient Volume)"
+                elif abs(delta_pts) < 1.0 and delta_fg_pct >= 1.0:
+                    trend_status = "📈 效率提升 (Efficiency Spike)"
+                elif delta_pts < -3.0:
+                    trend_status = "📉 下滑期 (Performance Decline)"
+                else:
+                    trend_status = "📊 表現波動 (Fluctuating Performance)"
+
+                report['trend_analysis'] = {
+                    'delta_pts': f"{'+' if delta_pts > 0 else ''}{round(delta_pts, 1)}",
+                    'delta_reb': f"{'+' if delta_reb > 0 else ''}{round(delta_reb, 1)}",
+                    'delta_ast': f"{'+' if delta_ast > 0 else ''}{round(delta_ast, 1)}",
+                    'delta_fg_pct': f"{'+' if delta_fg_pct > 0 else ''}{round(delta_fg_pct, 1)}%", # <-- 新增
+                    'trend_status': trend_status,
+                }
+            else:
+                 report['trend_analysis'] = {'trend_status': '無法計算生涯趨勢', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A', 'delta_fg_pct': 'N/A'} # <-- 確保所有鍵都存在
+
+            # 薪資資訊 (佔位符)
+            report['contract_year'] = '數據源無法獲取'
+            report['salary'] = '數據源無法獲取'
+            report['season'] = season
+        else:
+            # 無數據時的 N/A 設置
+            report.update({
+                'games_played': 0, 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A',
+                'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A', 'contract_year': 'N/A', 'salary': 'N/A', 'season': f"無 {season} 賽季數據",
+            })
+            report['trend_analysis'] = {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A', 'delta_fg_pct': 'N/A'} # <-- 確保所有鍵都存在
+
+        # --- 獎項列表 (含年份) ---
+        if not awards_df.empty:
+            award_pairs = awards_df[['DESCRIPTION', 'SEASON']].apply(lambda x: f"{x['DESCRIPTION']} ({x['SEASON'][:4]})", axis=1).tolist()
+            report['awards'] = award_pairs
+        else:
+            report['awards'] = []
+
+        return report
+
+    except Exception as e:
+        # 最終的錯誤返回處理 (確保所有鍵都存在，以防前端崩潰)
+        return {
+            'error': f"數據處理失敗，詳細錯誤: {e}",
+            'name': player_name, 'team_abbr': 'ERR', 'team_full': 'API Error', 'precise_positions': 'N/A', 
+            'games_played': 0, 'pts': 'N/A', 'reb': 'N/A', 'ast': 'N/A', 'stl': 'N/A', 'blk': 'N/A', 'tov': 'N/A', 'ato_ratio': 'N/A', 
+            'fg_pct': 'N/A', 'ft_pct': 'N/A', 'fta_per_game': 'N/A', 'min_per_game': 'N/A',
+            'trend_analysis': {'trend_status': 'N/A', 'delta_pts': 'N/A', 'delta_reb': 'N/A', 'delta_ast': 'N/A', 'delta_fg_pct': 'N/A'},
+            'awards': [], 'contract_year': 'N/A', 'salary': 'N/A', 'season': season
+        }
+
+
+# ======================================
+# IV. 報告格式化與輸出
+# ======================================
 
 def format_report_markdown_streamlit(data):
     """將整理後的數據格式化為 Markdown 報告 (Streamlit 直接渲染)"""
@@ -244,6 +260,7 @@ def format_report_markdown_streamlit(data):
 * **得分差異 (PTS $\Delta$):** {trend['delta_pts']} (vs. 生涯平均)
 * **籃板差異 (REB $\Delta$):** {trend['delta_reb']}
 * **助攻差異 (AST $\Delta$):** {trend['delta_ast']}
+* **投籃效率差異 (FG% $\Delta$):** {trend['delta_fg_pct']} # <-- 新增
 
 ---
 
@@ -258,9 +275,9 @@ def format_report_markdown_streamlit(data):
 """
     return markdown_text
 
-# ====================================================================
-# II. Streamlit 界面邏輯
-# ====================================================================
+# ======================================
+# V. Streamlit 界面邏輯 (運行部分)
+# ======================================
 
 # 設定頁面
 st.set_page_config(layout="centered")
@@ -269,8 +286,8 @@ st.title("🏀 NBA 球員狀態報告自動生成系統")
 # 使用 Streamlit 的 sidebar 創建輸入表單
 with st.sidebar:
     st.header("參數設置")
-    player_name_input = st.text_input("輸入球員全名:", value="James Harden")
-    season_input = st.text_input("輸入查詢賽季:", value="2018-19")
+    player_name_input = st.text_input("輸入球員全名:", value="Jayson Tatum")
+    season_input = st.text_input("輸入查詢賽季:", value="2023-24")
     
     # 創建一個按鈕
     if st.button("🔍 生成報告"):

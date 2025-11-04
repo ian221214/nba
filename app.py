@@ -154,13 +154,13 @@ def get_player_report(player_name, season='2023-24'):
                 career_avg['pts'] = round(career_totals_df.loc[0, 'PTS'] / total_gp_career, 1)
                 career_avg['reb'] = round(career_totals_df.loc[0, 'REB'] / total_gp_career, 1)
                 career_avg['ast'] = round(career_totals_df.loc[0, 'AST'] / total_gp_career, 1)
-                career_avg['fg_pct'] = round(career_totals_df.loc[0, 'FG_PCT'] * 100, 1) # <-- 新增：生涯 FG%
+                career_avg['fg_pct'] = round(career_totals_df.loc[0, 'FG_PCT'] * 100, 1) 
                 
                 # 1. 計算 Delta
                 delta_pts = report['pts'] - career_avg['pts']
                 delta_reb = report['reb'] - career_avg['reb']
                 delta_ast = report['ast'] - career_avg['ast']
-                delta_fg_pct = report['fg_pct'] - career_avg['fg_pct'] # <-- 新增：Delta FG%
+                delta_fg_pct = report['fg_pct'] - career_avg['fg_pct'] 
 
                 # 2. 判斷趨勢狀態 (多因素判斷)
                 if delta_pts >= 3.0 and delta_fg_pct >= -1.0:
@@ -178,7 +178,7 @@ def get_player_report(player_name, season='2023-24'):
                     'delta_pts': f"{'+' if delta_pts > 0 else ''}{round(delta_pts, 1)}",
                     'delta_reb': f"{'+' if delta_reb > 0 else ''}{round(delta_reb, 1)}",
                     'delta_ast': f"{'+' if delta_ast > 0 else ''}{round(delta_ast, 1)}",
-                    'delta_fg_pct': f"{'+' if delta_fg_pct > 0 else ''}{round(delta_fg_pct, 1)}%", # <-- 新增
+                    'delta_fg_pct': f"{'+' if delta_fg_pct > 0 else ''}{round(delta_fg_pct, 1)}%", 
                     'trend_status': trend_status,
                 }
             else:
